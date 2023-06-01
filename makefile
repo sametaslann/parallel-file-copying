@@ -27,6 +27,9 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) -o $@
 
+valgrind: $(hw2)
+	valgrind --leak-check=full --track-origins=yes --show-leak-kinds=all --gen-suppressions=all -s ./hw5
+
 # Clean up the generated files
 clean:
 	rm -f $(OBJS) $(TARGET)
