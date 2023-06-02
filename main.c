@@ -16,6 +16,8 @@
 #include "file_transfer.h"
 #include "common.h"
 
+#define MAX_FD_LIMIT 1000
+
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t stdout_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -86,7 +88,7 @@ void store_file_descriptors(const char* source_file_path, const char* destinatio
 
 
     pthread_mutex_lock(&new_fd_mutex);
-    while(num_of_opened_fd >= 1000){
+    while(num_of_opened_fd >= MAX_FD_LIMIT){
         pthread_cond_wait(&new_fd_cond, &new_fd_mutex);
     }
     pthread_mutex_unlock(&new_fd_mutex);
