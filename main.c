@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 
 
 #include "file_transfer.h"
@@ -18,6 +19,9 @@
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t stdout_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t new_fd_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_cond_t new_fd_cond = PTHREAD_COND_INITIALIZER;
 pthread_cond_t full = PTHREAD_COND_INITIALIZER;
 pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
 
@@ -27,9 +31,12 @@ int total_bytes = 0;
 int created_dir = 0;
 int copied_reg_file = 0;
 int copied_fifo_file = 0;
+unsigned int fd_limit;
+unsigned int num_of_opened_fd = 0;
+
+
 
 Buffer* buffer;
-
 
 void handle_signal(int signal) {
 
@@ -77,20 +84,28 @@ void handle_signal(int signal) {
 void store_file_descriptors(const char* source_file_path, const char* destination_file_path, char *filename) {
 
 
-    int source_file = open(source_file_path, O_RDONLY, 0777);
-    if (!source_file) {
-        pthread_mutex_lock(&stdout_mutex);
-        printf("Failed to open source file: %s !! \n", source_file_path);
-        pthread_mutex_unlock(&stdout_mutex);
 
+    pthread_mutex_lock(&new_fd_mutex);
+    while(num_of_opened_fd >= 1000){
+        pthread_cond_wait(&new_fd_cond, &new_fd_mutex);
+    }
+    pthread_mutex_unlock(&new_fd_mutex);
+
+
+
+    int source_file = open(source_file_path, O_RDONLY, 0777);
+    if (source_file < 1) {
+        pthread_mutex_lock(&stdout_mutex);
+        perror("open");
+        pthread_mutex_unlock(&stdout_mutex);
         return;
     }
 
     // Open the destination file for writing
     int destination_file = open(destination_file_path, O_WRONLY | O_CREAT, 0777);
-    if (!destination_file) {
+    if (destination_file < 1) {
         pthread_mutex_lock(&stdout_mutex);
-        printf("Failed to create destination file: %s !! \n", destination_file_path);
+        perror("open");
         pthread_mutex_unlock(&stdout_mutex);
         close(source_file);
         return;
@@ -98,6 +113,7 @@ void store_file_descriptors(const char* source_file_path, const char* destinatio
 
     pthread_mutex_lock(&mutex);
 
+    num_of_opened_fd += 2; 
     //Wait the buffer has a empty place
     while (isFull(buffer) && !done)
         pthread_cond_wait(&empty, &mutex);
@@ -109,6 +125,9 @@ void store_file_descriptors(const char* source_file_path, const char* destinatio
     }
     
     //Insert item to buffer
+    printf("source: %d\n", source_file);
+    printf("dest: %d\n", destination_file);
+
     enqueue(buffer, source_file, destination_file, filename);
 
     // Signal that the buffer is not empty
@@ -131,6 +150,7 @@ void copy_directory(char* source_dir_path, char* destination_dir_path){
         return;
     }
 
+
     mkdir(destination_dir_path, 0777);
 
     struct dirent* dir_entry;
@@ -150,8 +170,9 @@ void copy_directory(char* source_dir_path, char* destination_dir_path){
 
             ++created_dir; 
 
+
             pthread_mutex_lock(&stdout_mutex);
-            printf("|\t\033[1;31m# %-42s  directory created  #\033[0m%23s\n", destination_subdir, "|");
+            printf("|\t\033[1;31m# %-42s  directory created  #\033[0m\n", destination_subdir);
             pthread_mutex_unlock(&stdout_mutex);
 
             copy_directory(source_subdir, destination_subdir);
@@ -232,14 +253,14 @@ void* consumer(void *arg){
             pthread_cond_wait(&full, &mutex);
 
 
-        if (isEmpty(buffer) && done)
+        if (done)
         {
             pthread_mutex_unlock(&mutex);
             break;
         }
         
 
-        FileInformations fileInfos = dequeue(buffer);
+        FileInformations *fileInfos = dequeue(buffer);
 
         // Signal that the buffer is not full
         pthread_cond_signal(&empty);
@@ -248,20 +269,20 @@ void* consumer(void *arg){
         pthread_mutex_unlock(&mutex);
 
         
-        int source_fd = fileInfos.source_fd;
-        int destination_fd = fileInfos.destination_fd;
-        char *filename = fileInfos.filename;
+        int source_fd = fileInfos->source_fd;
+        int destination_fd = fileInfos->destination_fd;
+        char *filename = fileInfos->filename;
 
 
         // Copy the contents of the source file to the dest file using chunks
-        char buffer[4096];
+        char buff[4096];
         size_t bytes_read;
         size_t bytes_written;
         size_t total_bytes_for_a_file = 0;
 
-        while ((bytes_read = read(source_fd, buffer, sizeof(buffer))) > 0 && !signal_received)
+        while ((bytes_read = read(source_fd, buff, sizeof(buff))) > 0 && !signal_received)
         {
-            bytes_written = write(destination_fd, buffer, bytes_read);
+            bytes_written = write(destination_fd, buff, bytes_read);
             if (bytes_written != bytes_read)
             {
                 printf("Failed to write to destination file \n");
@@ -272,12 +293,18 @@ void* consumer(void *arg){
         }
 
         pthread_mutex_lock(&stdout_mutex);
-        printf("|\t\033[1;36m#  %-30s  %10ld bytes copied succesfully #\033[0m\t\t%-10s\n", filename, total_bytes_for_a_file, "|");
+        printf("|\t\033[1;36m#  %-30s  %10ld bytes copied succesfully #\033[0m\t\t\n", filename, total_bytes_for_a_file);
         pthread_mutex_unlock(&stdout_mutex);
 
 
+
+
+        pthread_mutex_lock(&new_fd_mutex);
         close(source_fd);
         close(destination_fd);    
+        num_of_opened_fd -= 2; 
+        pthread_cond_signal(&new_fd_cond);
+        pthread_mutex_unlock(&new_fd_mutex);
     }
 
     return NULL;
@@ -285,10 +312,12 @@ void* consumer(void *arg){
 
 
 int main(int argc, char *argv[]) {
+      printf("zort");
 
     char* directories[2];
     struct timeval start,end;
     struct sigaction sa;
+    struct rlimit limit;
 
 
     // Register the signal handler
@@ -315,14 +344,22 @@ int main(int argc, char *argv[]) {
 
     //Parse the given command line
     int buffer_size = atoi(argv[1]);
-    int num_consumers = atoi(argv[2]);
+    long num_consumers = atoi(argv[2]);
     char *source_dir_path = argv[3];
     char *destination_dir_path = argv[4];
 
     directories[0] = source_dir_path;
     directories[1] = destination_dir_path;
 
+    printf("size: %d\n", buffer_size);
     buffer = createQueue(buffer_size);
+    
+
+    if (getrlimit(RLIMIT_NOFILE, &limit) == -1) {
+        perror("getrlimit");
+        return 1;
+    }
+    fd_limit = limit.rlim_cur;
 
 
     if (gettimeofday(&start, NULL) == -1)
@@ -335,6 +372,7 @@ int main(int argc, char *argv[]) {
     pthread_t consumer_threads[num_consumers];
     for (int i = 0; i < num_consumers; i++)
     {
+        printf("**************************\n");
        if (pthread_create(&consumer_threads[i], NULL, consumer, NULL) != 0) {
             printf("Failed to create consumer thread %d.\n", i);
             return -1;
@@ -390,6 +428,14 @@ int main(int argc, char *argv[]) {
     printf("\n\t\033[1;32m--Total Time to copy files : %f ms\033[0m\n\n", elapsed);
 
     printf("\n\t\033[1;32m--Total %d bytes copied \033[0m\n\n", total_bytes);
+
+    for (int i = 0; i < buffer->size; i++)
+    {
+        FileInformations *fds = dequeue(buffer);
+        close(fds->source_fd);
+        close(fds->destination_fd);
+    }
+    
 
     free(buffer->array);
     free(buffer);

@@ -17,7 +17,7 @@ Buffer* createQueue(unsigned capacity)
     queue->capacity = capacity;
     queue->front = queue->size = 0;
     queue->rear = capacity - 1;
-    queue->array = (FileInformations*)malloc(queue->capacity * sizeof(FileInformations));
+    queue->array = (FileInformations**)malloc(queue->capacity * sizeof(FileInformations*));
     return queue;
 }
 
@@ -42,46 +42,55 @@ void enqueue(Buffer* queue, int source_file, int destination_file, const char* f
         printf("Queue is full. Cannot enqueue.\n");
         return;
     }
+
+    FileInformations* data = malloc(sizeof(FileInformations));
+
+    data->source_fd = source_file;
+    data->destination_fd = destination_file;
+
+    strncpy(data->filename, filename, sizeof(data->filename - 1));
+    data->filename[sizeof(data->filename - 1)] = '\0'; 
+
     queue->rear = (queue->rear + 1) % queue->capacity;
-    queue->array[queue->rear].source_fd = source_file;
-    queue->array[queue->rear].destination_fd = destination_file;
-    strncpy(queue->array[queue->rear].filename, filename, sizeof(queue->array[queue->rear].filename) - 1);
-    queue->array[queue->rear].filename[sizeof(queue->array[queue->rear].filename) - 1] = '\0'; // Ensure null-termination
+    queue->array[queue->rear] = data;
+    // strncpy(queue->array[queue->rear].filename, filename, sizeof(queue->array[queue->rear].filename) - 1);
+
+    // queue->array[queue->rear].filename[sizeof(queue->array[queue->rear].filename) - 1] = '\0'; // Ensure null-termination
     queue->size = queue->size + 1;
 }
 
 
 // Function to remove an item from queue.
 // It changes front and size
-FileInformations dequeue(Buffer* queue)
+FileInformations* dequeue(Buffer* queue)
 {
-    FileInformations emptyFileInformations = { 0 };
+    FileInformations *emptyFileInformations = { 0 };
     if (isEmpty(queue)) {
         printf("Queue is empty. Cannot dequeue.\n");
         return emptyFileInformations;
     }
-    FileInformations item = queue->array[queue->front];
+    FileInformations* item = queue->array[queue->front];
     queue->front = (queue->front + 1) % queue->capacity;
     queue->size = queue->size - 1;
     return item;
 }
 
-FileInformations front(Buffer* queue)
-{
-    FileInformations emptyFileInformations = { 0 };
-    if (isEmpty(queue)) {
-        printf("Queue is empty.\n");
-        return emptyFileInformations;
-    }
-    return queue->array[queue->front];
-}
+// FileInformations front(Buffer* queue)
+// {
+//     FileInformations emptyFileInformations = { 0 };
+//     if (isEmpty(queue)) {
+//         printf("Queue is empty.\n");
+//         return emptyFileInformations;
+//     }
+//     return queue->array[queue->front];
+// }
 
-FileInformations rear(Buffer* queue)
-{
-    FileInformations emptyFileInformations = { 0 };
-    if (isEmpty(queue)) {
-        printf("Queue is empty.\n");
-        return emptyFileInformations;
-    }
-    return queue->array[queue->rear];
-}
+// FileInformations rear(Buffer* queue)
+// {
+//     FileInformations emptyFileInformations = { 0 };
+//     if (isEmpty(queue)) {
+//         printf("Queue is empty.\n");
+//         return emptyFileInformations;
+//     }
+//     return queue->array[queue->rear];
+// }

@@ -12,14 +12,14 @@ typedef struct {
 typedef struct {
     int front, rear, size;
     unsigned capacity;
-    FileInformations* array;
+    FileInformations** array;
 } Buffer;
 
 Buffer* createQueue(unsigned capacity);
 int isFull(Buffer* queue);
 int isEmpty(Buffer* queue);
 void enqueue(Buffer* queue, int source_file, int destination_file, const char* file_name);
-FileInformations dequeue(Buffer* queue);
+FileInformations *dequeue(Buffer* queue);
 FileInformations front(Buffer* queue);
 FileInformations rear(Buffer* queue);
 

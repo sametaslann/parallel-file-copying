@@ -3,7 +3,7 @@
 CC = gcc
 
 # Compiler flags
-CFLAGS = -D_DEFAULT_SOURCE -Wall  -pedantic -lrt
+CFLAGS = -g -D_DEFAULT_SOURCE -Wall  -pedantic -lrt
 # Source files
 SRCS = main.c file_transfer.c common.c
 
@@ -27,8 +27,9 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) -o $@
 
-valgrind: $(hw2)
+valgrind: $(hw5)
 	valgrind --leak-check=full --track-origins=yes --show-leak-kinds=all --gen-suppressions=all -s ./hw5
+
 
 # Clean up the generated files
 clean:
