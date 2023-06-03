@@ -1,17 +1,16 @@
-
 # Compiler
 CC = gcc
 
 # Compiler flags
-CFLAGS = -g -D_DEFAULT_SOURCE -Wall  -pedantic -lrt
+CFLAGS = -D_DEFAULT_SOURCE -Wall  -pedantic -lrt -pthread -std=c11 -Iinclude
 # Source files
-SRCS = main.c file_transfer.c common.c
+SRCS = main.c src/file_transfer.c src/common.c
 
 # Object files
-OBJS = $(SRCS:.c=.o)
+OBJS = obj/common.o obj/file_transfer.o obj/main.o
 
 # Header files
-HEADERS = file_transfer.h common.h
+HEADERS = include/file_transfer.h include/common.h
 
 # Target executable
 TARGET = hw5
@@ -20,7 +19,10 @@ TARGET = hw5
 all: $(TARGET)
 
 # Compile source files into object files
-%.o: %.c $(HEADERS)
+obj/%.o: src/%.c $(HEADERS)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+obj/main.o: main.c $(HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Link object files into the target executable

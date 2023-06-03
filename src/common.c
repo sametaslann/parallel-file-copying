@@ -3,8 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "common.h"
-
+#include "../include/common.h"
 
 
 
@@ -36,7 +35,7 @@ int isEmpty(Buffer* queue)
 
 // Function to add an item to the queue.
 // It changes rear and size
-void enqueue(Buffer* queue, int source_file, int destination_file, const char* filename)
+void enqueue(Buffer* queue, int source_file, int destination_file, const char* filepath)
 {
     if (isFull(queue)) {
         printf("Queue is full. Cannot enqueue.\n");
@@ -48,14 +47,11 @@ void enqueue(Buffer* queue, int source_file, int destination_file, const char* f
     data->source_fd = source_file;
     data->destination_fd = destination_file;
 
-    strncpy(data->filename, filename, sizeof(data->filename - 1));
-    data->filename[sizeof(data->filename - 1)] = '\0'; 
+    strncpy(data->filepath, filepath, 4096);
+    data->filepath[4095] = '\0'; 
 
     queue->rear = (queue->rear + 1) % queue->capacity;
     queue->array[queue->rear] = data;
-    // strncpy(queue->array[queue->rear].filename, filename, sizeof(queue->array[queue->rear].filename) - 1);
-
-    // queue->array[queue->rear].filename[sizeof(queue->array[queue->rear].filename) - 1] = '\0'; // Ensure null-termination
     queue->size = queue->size + 1;
 }
 
@@ -75,22 +71,3 @@ FileInformations* dequeue(Buffer* queue)
     return item;
 }
 
-// FileInformations front(Buffer* queue)
-// {
-//     FileInformations emptyFileInformations = { 0 };
-//     if (isEmpty(queue)) {
-//         printf("Queue is empty.\n");
-//         return emptyFileInformations;
-//     }
-//     return queue->array[queue->front];
-// }
-
-// FileInformations rear(Buffer* queue)
-// {
-//     FileInformations emptyFileInformations = { 0 };
-//     if (isEmpty(queue)) {
-//         printf("Queue is empty.\n");
-//         return emptyFileInformations;
-//     }
-//     return queue->array[queue->rear];
-// }

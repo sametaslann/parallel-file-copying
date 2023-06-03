@@ -6,7 +6,7 @@
 typedef struct {
     int source_fd;
     int destination_fd;
-    char filename[512];
+    char filepath[4096];
 } FileInformations;
 
 typedef struct {
